@@ -63,6 +63,10 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseCommentStatement()
 	case token.FROM:
 		return p.parseFromStatement()
+	case token.ARG:
+		return p.parseArgStatement()
+	case token.COPY:
+		return p.parseCopyStatement()
 	default:
 		return nil
 	}
@@ -77,7 +81,27 @@ func (p *Parser) parseCommentStatement() *ast.CommentStatement {
 
 	stmt.Value = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
+	p.expectPeekEnd()
+
 	return stmt
+}
+
+func (p *Parser) parseArguments() []*ast.Argument {
+	var args []*ast.Argument
+
+	for strings.HasPrefix(p.curToken.Literal, "--") {
+		a := strings.TrimPrefix(p.curToken.Literal, "--")
+		if name, value, ok := strings.Cut(a, "="); ok {
+			args = append(args, &ast.Argument{Token: p.curToken, Name: name, Value: value})
+		} else {
+			return nil
+		}
+		if !p.expectPeek(token.EXPR) {
+			return nil
+		}
+	}
+
+	return args
 }
 
 func (p *Parser) parseFromStatement() *ast.FromStatement {
@@ -87,17 +111,7 @@ func (p *Parser) parseFromStatement() *ast.FromStatement {
 		return nil
 	}
 
-	if strings.HasPrefix(p.curToken.Literal, "--") {
-		a := strings.TrimPrefix(p.curToken.Literal, "--")
-		if name, value, ok := strings.Cut(a, "="); ok {
-			stmt.Arguments = append(stmt.Arguments, &ast.Argument{Token: p.curToken, Name: name, Value: value})
-		} else {
-			return nil
-		}
-		if !p.expectPeek(token.EXPR) {
-			return nil
-		}
-	}
+	stmt.Arguments = p.parseArguments()
 
 	stmt.Source = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
@@ -108,11 +122,54 @@ func (p *Parser) parseFromStatement() *ast.FromStatement {
 		stmt.Alias = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 	}
 
-	//...
+	p.expectPeekEnd()
 
-	for !p.curTokenIs(token.EOL) && !p.curTokenIs(token.EOF) {
-		p.nextToken()
+	return stmt
+}
+
+func (p *Parser) parseCopyStatement() *ast.CopyStatement {
+	stmt := &ast.CopyStatement{Token: p.curToken}
+
+	if !p.expectPeek(token.EXPR) {
+		return nil
 	}
+
+	stmt.Arguments = p.parseArguments()
+
+	stmt.Source = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if !p.expectPeek(token.EXPR) {
+		return nil
+	}
+
+	stmt.Dest = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	p.expectPeekEnd()
+
+	return stmt
+}
+
+func (p *Parser) parseArgStatement() *ast.ArgStatement {
+	stmt := &ast.ArgStatement{Token: p.curToken}
+
+	if !p.expectPeek(token.EXPR) {
+		return nil
+	}
+
+	stmt.Value = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if name, value, ok := strings.Cut(p.curToken.Literal, "="); ok {
+		stmt.ArgName = name
+		stmt.ArgValue = strPtr(value)
+	} else {
+		stmt.ArgName = name
+		if p.peekTokenIs(token.EXPR) {
+			p.nextToken()
+			stmt.ArgValue = strPtr(p.curToken.Literal)
+		}
+	}
+
+	p.expectPeekEnd()
 
 	return stmt
 }
@@ -135,6 +192,14 @@ func (p *Parser) expectPeek(t token.Type) bool {
 	}
 }
 
+func (p *Parser) expectPeekEnd() {
+	if !p.peekTokenIs(token.EOL) && !p.peekTokenIs(token.EOF) {
+		p.peekError(token.EOL)
+	} else {
+		p.nextToken()
+	}
+}
+
 func (p *Parser) Errors() []string {
 	return p.errors
 }
@@ -142,4 +207,8 @@ func (p *Parser) Errors() []string {
 func (p *Parser) peekError(t token.Type) {
 	msg := fmt.Sprintf("expected next token to be %s, got %s instead", t, p.peekToken.Type)
 	p.errors = append(p.errors, msg)
+}
+
+func strPtr(s string) *string {
+	return &s
 }

@@ -65,3 +65,23 @@ type Argument struct {
 
 func (a *Argument) expressionNode()      {}
 func (a *Argument) TokenLiteral() string { return a.Token.Literal }
+
+type ArgStatement struct {
+	Token    token.Token
+	Value    *Identifier
+	ArgName  string
+	ArgValue *string
+}
+
+func (fs *ArgStatement) statementNode()       {}
+func (fs *ArgStatement) TokenLiteral() string { return fs.Token.Literal }
+
+type CopyStatement struct {
+	Token     token.Token
+	Source    *Identifier
+	Dest      *Identifier
+	Arguments []*Argument
+}
+
+func (fs *CopyStatement) statementNode()       {}
+func (fs *CopyStatement) TokenLiteral() string { return fs.Token.Literal }
