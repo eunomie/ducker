@@ -135,7 +135,7 @@ func (l *Lexer) userPosition() token.Position {
 
 func (l *Lexer) isValidExprRune() bool {
 	switch l.r {
-	case ' ', '\t', '\r', '\n':
+	case ' ', '\t', '\r', '\n', utf8.RuneError:
 		return false
 	case '\\':
 		if l.PeekRune() == ' ' {
